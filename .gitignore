@@ -1,0 +1,30 @@
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Virtual environments
+.venv/
+.venv_local/
+.venv_nopip/
+venv/
+
+# Local environment files
+.env
+
+# Streamlit and runtime logs
+streamlit_ui_check.log
+streamlit_ui_check.err.log
+*.log
+
+# Local temp and OCR runtime state
+.tmp/
+.owocr_home/
+
+# Generated OCR data
+data/input/
+data/output/
+data/work/
+
+# IDE / OS noise
+.DS_Store
+Thumbs.db

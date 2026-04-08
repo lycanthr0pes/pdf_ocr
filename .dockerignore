@@ -1,0 +1,14 @@
+.git
+.env
+.venv
+.venv_local
+.venv_nopip
+__pycache__
+*.pyc
+.tmp
+.owocr_home
+data/input
+data/output
+data/work
+streamlit_ui_check.log
+streamlit_ui_check.err.log
