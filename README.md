@@ -30,16 +30,18 @@ Streamlit + Python prototype for validating this workflow:
 ## Setup
 
 ```powershell
-python -m venv .venv
-.venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
+.\.venv_nopip\Scripts\Activate.ps1
 Copy-Item .env.example .env
 ```
+
+This repository currently uses `.venv_nopip` as the canonical local environment.
+It already contains the verified `streamlit`, `PyMuPDF`, and `owocr[screenai]`
+installation used during development and testing.
 
 ## Run
 
 ```powershell
-streamlit run app.py
+.\.venv_nopip\Scripts\python.exe -m streamlit run app.py
 ```
 
 ## Docker
@@ -63,7 +65,7 @@ docker run --rm -p 8501:8501 ^
 ## Current behavior
 
 - The app is `owocr`-only. It always runs `owocr` with Chrome Screen AI and writes `.txt`.
-- The service builds the command as `owocr -r=<rendered_pages_dir> -w=<output_dir>` and then appends `OWOCR_EXTRA_ARGS` if needed.
+- The service uses the `owocr` Python package directly and calls Chrome Screen AI without going through the full CLI watcher flow.
 - If `owocr` is not configured and `ALLOW_MOCK_OCR=true`, the app still runs with mock output so the UI and job flow can be validated.
 
 ## Notes on owocr

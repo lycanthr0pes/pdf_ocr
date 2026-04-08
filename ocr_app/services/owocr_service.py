@@ -1,9 +1,6 @@
 from __future__ import annotations
 
-import shlex
-import subprocess
 import os
-import time
 from pathlib import Path
 from typing import Callable
 
@@ -14,10 +11,6 @@ ProgressCallback = Callable[[str, str, int, int], None]
 
 
 class OwocrService:
-    OUTPUT_POLL_SECONDS = 1.0
-    OUTPUT_READY_STABLE_POLLS = 2
-    PROCESS_SHUTDOWN_TIMEOUT = 10
-
     def __init__(self, config: AppConfig) -> None:
         self.config = config
 
@@ -27,115 +20,59 @@ class OwocrService:
         work_dir: Path,
         progress_callback: ProgressCallback,
     ) -> str:
-        output_dir = work_dir / "owocr_output"
-
-        if not self.config.owocr_executable:
-            if self.config.allow_mock_ocr:
-                return self._mock_text(image_paths, progress_callback)
-            raise RuntimeError("OWOCR_EXECUTABLE is not configured.")
+        if self.config.allow_mock_ocr:
+            return self._mock_text(image_paths, progress_callback)
 
         total = len(image_paths)
-        progress_callback("ocr", "Running owocr with Chrome Screen AI on rendered page images", 0, total)
+        progress_callback("ocr", "Running owocr Chrome Screen AI on rendered page images", 0, total)
 
-        command = self._build_command(
-            input_dir=image_paths[0].parent,
-            output_dir=output_dir,
-        )
-        process = subprocess.Popen(
-            command,
-            cwd=str(work_dir),
-            env=self.build_env(work_dir),
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-        )
+        engine = self._create_engine(work_dir)
+        pages: list[str] = []
+        for index, image_path in enumerate(image_paths, start=1):
+            progress_callback("ocr", f"Processing page {index}/{total}", index - 1, total)
+            pages.append(self._ocr_single_image(engine, image_path))
+            progress_callback("ocr", f"Completed page {index}/{total}", index, total)
+        return "\n\n".join(page for page in pages if page).strip()
+
+    def _create_engine(self, work_dir: Path):
+        env_updates = self.build_env(work_dir)
+        old_env = {key: os.environ.get(key) for key in env_updates}
+        os.environ.update(env_updates)
         try:
-            self._wait_for_outputs(
-                process=process,
-                output_dir=output_dir,
-                expected_count=total,
-                progress_callback=progress_callback,
-            )
+            from owocr.ocr import ChromeScreenAI
         finally:
-            if process.poll() is None:
-                process.terminate()
-                try:
-                    process.wait(timeout=self.PROCESS_SHUTDOWN_TIMEOUT)
-                except subprocess.TimeoutExpired:
-                    process.kill()
-                    process.wait(timeout=self.PROCESS_SHUTDOWN_TIMEOUT)
+            for key, value in old_env.items():
+                if value is None:
+                    os.environ.pop(key, None)
+                else:
+                    os.environ[key] = value
 
-        stdout, stderr = process.communicate(timeout=5)
-        if process.returncode not in (0, 1, -15):
-            detail = (stderr or "").strip() or (stdout or "").strip() or "no output"
-            raise RuntimeError(
-                f"owocr command failed with code {process.returncode}: {detail}"
-            )
-        if not output_dir.exists():
-            raise RuntimeError("owocr completed but did not create the expected output directory.")
+        engine = ChromeScreenAI()
+        if not getattr(engine, "available", False):
+            raise RuntimeError("owocr Chrome Screen AI could not be initialized.")
+        return engine
 
-        progress_callback("ocr", "owocr command completed", total, total)
-        page_outputs = sorted(output_dir.glob("*.txt"))
-        if not page_outputs:
-            raise RuntimeError("owocr completed but no text files were produced.")
-        return "\n\n".join(
-            page_output.read_text(encoding="utf-8").strip()
-            for page_output in page_outputs
-        ).strip()
+    def _ocr_single_image(self, engine, image_path: Path) -> str:
+        success, result = engine(str(image_path))
+        if not success:
+            raise RuntimeError(f"owocr failed on {image_path.name}: {result}")
+        return self._ocr_result_to_text(result)
 
-    def _build_command(self, input_dir: Path, output_dir: Path) -> list[str]:
-        command = [
-            self.config.owocr_executable,
-            f"-r={input_dir}",
-            f"-w={output_dir}",
-        ]
-        if self.config.owocr_extra_args.strip():
-            command.extend(shlex.split(self.config.owocr_extra_args, posix=False))
-        return command
-
-    def _wait_for_outputs(
-        self,
-        process: subprocess.Popen,
-        output_dir: Path,
-        expected_count: int,
-        progress_callback: ProgressCallback,
-        timeout_seconds: int = 180,
-    ) -> None:
-        deadline = time.monotonic() + timeout_seconds
-        last_count = -1
-        stable_polls = 0
-        while time.monotonic() < deadline:
-            if process.poll() is not None:
-                page_outputs = sorted(output_dir.glob("*.txt")) if output_dir.exists() else []
-                if len(page_outputs) >= expected_count:
-                    return
-                stdout, stderr = process.communicate(timeout=5)
-                detail = (stderr or "").strip() or (stdout or "").strip() or "no output"
-                raise RuntimeError(
-                    "owocr exited before producing the expected page outputs: "
-                    f"{len(page_outputs)}/{expected_count}. {detail}"
-                )
-
-            page_outputs = sorted(output_dir.glob("*.txt")) if output_dir.exists() else []
-            current_count = len(page_outputs)
-            if current_count != last_count:
-                progress_callback(
-                    "ocr",
-                    f"owocr produced {current_count}/{expected_count} page outputs",
-                    current_count,
-                    expected_count,
-                )
-                last_count = current_count
-                stable_polls = 0
-            elif current_count >= expected_count:
-                stable_polls += 1
-                if stable_polls >= self.OUTPUT_READY_STABLE_POLLS:
-                    return
-
-            time.sleep(self.OUTPUT_POLL_SECONDS)
-        raise RuntimeError("owocr did not produce the expected page outputs before timeout.")
+    def _ocr_result_to_text(self, result) -> str:
+        paragraphs: list[str] = []
+        for paragraph in getattr(result, "paragraphs", []):
+            lines: list[str] = []
+            for line in getattr(paragraph, "lines", []):
+                line_text = getattr(line, "text", None)
+                if not line_text:
+                    words = getattr(line, "words", []) or []
+                    line_text = " ".join(word.text for word in words if getattr(word, "text", ""))
+                line_text = (line_text or "").strip()
+                if line_text:
+                    lines.append(line_text)
+            if lines:
+                paragraphs.append("\n".join(lines))
+        return "\n\n".join(paragraphs).strip()
 
     def build_env(self, work_dir: Path) -> dict[str, str]:
         temp_dir = work_dir / "tmp"

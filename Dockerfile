@@ -1,4 +1,4 @@
-FROM python:3.12-slim
+FROM python:3.12-slim-trixie
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -10,9 +10,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     WORK_DIR=data/work \
     OUTPUT_DIR=data/output \
     PDF_RENDER_DPI=220 \
-    ALLOW_MOCK_OCR=false \
-    OWOCR_EXECUTABLE=owocr \
-    OWOCR_EXTRA_ARGS="-el=screenai -e=screenai -t=false -n=false"
+    ALLOW_MOCK_OCR=false
 
 WORKDIR /app
 
@@ -21,18 +19,18 @@ RUN apt-get update \
         ca-certificates \
         curl \
         libglib2.0-0 \
-        libgl1 \
         libgomp1 \
-        libsm6 \
-        libxext6 \
-        libxrender1 \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
 
 RUN python -m pip install --upgrade pip \
     && python -m pip install -r requirements.txt \
-    && python -m pip install "owocr[screenai]"
+    && python -m pip install \
+        "protobuf>=6.33.2" \
+        "loguru>=0.7.3" \
+        "curl_cffi>=0.15.0" \
+        "owocr==1.26.8" --no-deps
 
 COPY app.py .
 COPY ocr_app ./ocr_app

@@ -14,8 +14,6 @@ class AppConfig:
     work_dir: Path
     output_dir: Path
     pdf_render_dpi: int
-    owocr_executable: str
-    owocr_extra_args: str
     allow_mock_ocr: bool
 
 
@@ -43,7 +41,5 @@ def load_config() -> AppConfig:
         work_dir=work_dir,
         output_dir=output_dir,
         pdf_render_dpi=int(os.getenv("PDF_RENDER_DPI", "220")),
-        owocr_executable=os.getenv("OWOCR_EXECUTABLE", "owocr"),
-        owocr_extra_args=os.getenv("OWOCR_EXTRA_ARGS", ""),
         allow_mock_ocr=_bool_env("ALLOW_MOCK_OCR", True),
     )
