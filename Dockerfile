@@ -20,6 +20,7 @@ RUN apt-get update \
         curl \
         libglib2.0-0 \
         libgomp1 \
+        python3-gi \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
@@ -27,9 +28,20 @@ COPY requirements.txt .
 RUN python -m pip install --upgrade pip \
     && python -m pip install -r requirements.txt \
     && python -m pip install \
+        "cffi>=1.17.1" \
         "protobuf>=6.33.2" \
+        "jaconv>=0.5.0" \
         "loguru>=0.7.3" \
+        "pynputfix>=1.8.2" \
+        "websockets>=16.0" \
+        "desktop-notifier>=6.2.0" \
+        "pystrayfix>=0.19.8" \
+        "mss>=10.1.0" \
+        "obsws-python>=1.8.0" \
+        "psutil>=7.2.2" \
         "curl_cffi>=0.15.0" \
+        "pyperclip>=1.11.0" \
+        "pywayland>=0.4.18" \
         "owocr==1.26.8" --no-deps
 
 COPY app.py .

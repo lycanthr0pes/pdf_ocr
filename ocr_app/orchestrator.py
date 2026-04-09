@@ -43,16 +43,19 @@ class OcrOrchestrator:
             raise RuntimeError("The PDF produced no pages.")
         progress_callback("prepare", f"Rendered {page_count} pages", 1, 1)
 
-        text = self.owocr_service.ocr_images(image_paths, work_dir, progress_callback)
-        suffix = ".txt"
+        text, markdown = self.owocr_service.ocr_images(image_paths, work_dir, progress_callback)
 
-        output_path = output_dir / f"{pdf_path.stem}{suffix}"
+        output_path = output_dir / f"{pdf_path.stem}.txt"
+        markdown_path = output_dir / f"{pdf_path.stem}.md"
         output_path.write_text(text, encoding="utf-8")
-        progress_callback("finalize", f"Saved output to {output_path.name}", 1, 1)
+        markdown_path.write_text(markdown, encoding="utf-8")
+        progress_callback("finalize", f"Saved output to {output_path.name} and {markdown_path.name}", 1, 1)
 
         return OcrJobResult(
             engine=engine,
             page_count=page_count,
             output_path=output_path,
+            markdown_path=markdown_path,
             text=text,
+            markdown=markdown,
         )

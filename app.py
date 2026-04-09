@@ -100,14 +100,23 @@ def main() -> None:
         st.subheader("Result")
         st.write(f"Engine: `{result.engine}`")
         st.write(f"Pages: `{result.page_count}`")
-        st.write(f"Output: `{result.output_path.name}`")
+        st.write(f"Text Output: `{result.output_path.name}`")
+        st.write(f"Markdown Output: `{result.markdown_path.name}`")
         st.download_button(
-            "Download output",
+            "Download Markdown",
+            data=result.markdown_path.read_bytes(),
+            file_name=result.markdown_path.name,
+            mime="text/markdown",
+        )
+        st.download_button(
+            "Download Text",
             data=result.output_path.read_bytes(),
             file_name=result.output_path.name,
             mime="text/plain",
         )
-        with st.expander("Preview"):
+        with st.expander("Markdown Preview"):
+            st.code(result.markdown[:6000] or "(empty)", language="markdown")
+        with st.expander("Text Preview"):
             st.text(result.text[:6000] or "(empty)")
 
 

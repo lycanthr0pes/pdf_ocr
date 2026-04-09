@@ -9,4 +9,6 @@ class OcrJobResult:
     engine: str
     page_count: int
     output_path: Path
+    markdown_path: Path
     text: str
+    markdown: str

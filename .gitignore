@@ -4,6 +4,8 @@ __pycache__/
 
 # Virtual environments
 .venv/
+.venv_wsl/
+.venv_wsl_test/
 .venv_local/
 .venv_nopip/
 venv/
@@ -19,6 +21,7 @@ streamlit_ui_check.err.log
 # Local temp and OCR runtime state
 .tmp/
 .owocr_home/
+=*
 
 # Generated OCR data
 data/input/
@@ -28,3 +31,4 @@ data/work/
 # IDE / OS noise
 .DS_Store
 Thumbs.db
+.codex
