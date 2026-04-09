@@ -29,7 +29,9 @@ Streamlit + Python prototype for validating this workflow:
 
 ## Setup
 
-The recommended runtime is `WSL` with a Linux-side virtual environment.
+The recommended runtime is `WSL` with a Linux-side virtual environment. Windows PowerShell commands are included below for Docker usage and for cases where you need to manage files from Windows.
+
+### Bash / WSL
 
 Create and activate the environment:
 
@@ -43,7 +45,7 @@ Install `owocr` in the same environment:
 
 ```bash
 python -m pip install --no-deps owocr==1.26.8
-python -m pip install jaconv loguru pynputfix websockets desktop-notifier pystrayfix mss obsws-python psutil curl_cffi pyperclip pywayland "protobuf>=6.33.2"
+python -m pip install cffi "protobuf>=6.33.2" jaconv loguru pynputfix websockets desktop-notifier pystrayfix mss obsws-python psutil curl_cffi pyperclip pywayland
 ```
 
 On Ubuntu / WSL, `owocr` also relies on system packages for GObject introspection:
@@ -58,7 +60,23 @@ Create a local `.env` if needed:
 cp .env.example .env
 ```
 
+### PowerShell
+
+If you only need Docker or Windows-side file operations, open PowerShell in the repository root:
+
+```powershell
+Set-Location "C:\Users\starv\OneDrive\OneShare\Git_Products\pdf_ocr"
+```
+
+Create `.env` from the example:
+
+```powershell
+Copy-Item .env.example .env
+```
+
 ## Run
+
+### Bash / WSL
 
 Mock OCR:
 
@@ -76,7 +94,44 @@ ALLOW_MOCK_OCR=false streamlit run app.py
 
 The first real OCR run on WSL downloads Chrome Screen AI assets into `~/.config/screen_ai`.
 
+### PowerShell
+
+If you need to start Streamlit from Windows Python instead of WSL, activate your Windows-side virtual environment first. The exact environment name depends on what you keep locally. For example:
+
+```powershell
+.\.venv_nopip\Scripts\Activate.ps1
+$env:ALLOW_MOCK_OCR = "true"
+streamlit run app.py
+```
+
+For real OCR with a Windows Python environment:
+
+```powershell
+$env:ALLOW_MOCK_OCR = "false"
+streamlit run app.py
+```
+
 ## Docker
+
+### Bash / WSL
+
+Build:
+
+```bash
+docker build -t pdf-ocr-streamlit .
+```
+
+Run:
+
+```bash
+docker run --rm -p 8501:8501 \
+  -v "$(pwd)/data/input:/app/data/input" \
+  -v "$(pwd)/data/output:/app/data/output" \
+  -v "$(pwd)/data/work:/app/data/work" \
+  pdf-ocr-streamlit
+```
+
+### PowerShell
 
 Build:
 
