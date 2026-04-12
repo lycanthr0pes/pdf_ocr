@@ -1,17 +1,27 @@
 # PDF OCR Prototype
 
-Streamlit + Python prototype for validating this workflow:
+Streamlit + Python app for this workflow:
 
 1. Select a PDF from a local list or upload it.
 2. Render every PDF page to images.
 3. Run `owocr` with Chrome Screen AI.
 4. Save the result as `.txt` and `.md`.
 
-## Structure
+## Runtime
+
+The primary supported runtime is Docker on Linux / WSL.
+
+- `compose.yaml` is the default way to build and run the app.
+- Real OCR is the default container mode.
+- Chrome Screen AI assets are persisted in the `screen_ai_cache` Docker volume so the first large download is reused.
+
+Repository structure:
 
 ```text
 .
 |-- app.py
+|-- compose.yaml
+|-- Dockerfile
 |-- ocr_app/
 |   |-- config.py
 |   |-- models.py
@@ -27,153 +37,105 @@ Streamlit + Python prototype for validating this workflow:
 `-- .env.example
 ```
 
-## Setup
+## Docker Setup
 
-The recommended runtime is `WSL` with a Linux-side virtual environment. Windows PowerShell commands are included below for Docker usage and for cases where you need to manage files from Windows.
-
-### Bash / WSL
-
-Create and activate the environment:
+Create local directories if needed:
 
 ```bash
-python3 -m venv ~/.venvs/pdf_ocr
-source ~/.venvs/pdf_ocr/bin/activate
-python -m pip install -r requirements.txt
+mkdir -p data/input data/output data/work
 ```
 
-Install `owocr` in the same environment:
+Build the image:
 
 ```bash
-python -m pip install --no-deps owocr==1.26.8
-python -m pip install cffi "protobuf>=6.33.2" jaconv loguru pynputfix websockets desktop-notifier pystrayfix mss obsws-python psutil curl_cffi pyperclip pywayland
+docker compose build
 ```
 
-On Ubuntu / WSL, `owocr` also relies on system packages for GObject introspection:
+Start the app:
 
 ```bash
-sudo apt install -y python3-gi build-essential pkg-config libcairo2-dev libgirepository-1.0-dev python3-dev
+docker compose up
 ```
 
-Create a local `.env` if needed:
+Then open `http://localhost:8501`.
+
+The app runs without a local `.env` file. If you want to override defaults such as `ALLOW_MOCK_OCR` or `PDF_RENDER_DPI`, you can create `.env` later using `.env.example` as a template.
+
+The container mounts these repository directories:
+
+- `data/input` for source PDFs
+- `data/work` for rendered page images and temporary OCR files
+- `data/output` for `.txt` and `.md` results
+
+The Screen AI runtime cache is stored in the Docker-managed `screen_ai_cache` volume. The first real OCR run downloads the model assets into that volume.
+
+## Docker Smoke Test
+
+This checks real OCR end to end inside the container:
 
 ```bash
-cp .env.example .env
+docker compose run --rm app python - <<'PY'
+from pathlib import Path
+from ocr_app.config import load_config
+from ocr_app.orchestrator import OcrOrchestrator
+
+config = load_config()
+config = config.__class__(
+    base_dir=config.base_dir,
+    input_dir=config.input_dir,
+    work_dir=config.work_dir,
+    output_dir=config.output_dir,
+    pdf_render_dpi=config.pdf_render_dpi,
+    allow_mock_ocr=False,
+)
+
+result = OcrOrchestrator(config).run(
+    Path("data/input/sample_owocr_test.pdf"),
+    lambda stage, message, current, total: print(f"[{stage}] {current}/{total} {message}"),
+)
+print(result.output_path)
+print(result.markdown_path)
+PY
 ```
 
-### PowerShell
+## Local Dev Alternative
 
-If you only need Docker or Windows-side file operations, open PowerShell in the repository root:
+If you want to work outside Docker, use the Linux-side `.venv` in WSL. This is a development path, not the primary distribution path.
 
-```powershell
-Set-Location "C:\Users\starv\OneDrive\OneShare\Git_Products\pdf_ocr"
-```
-
-Create `.env` from the example:
-
-```powershell
-Copy-Item .env.example .env
-```
-
-## Run
-
-### Bash / WSL
-
-Mock OCR:
+Create the environment:
 
 ```bash
-source ~/.venvs/pdf_ocr/bin/activate
-ALLOW_MOCK_OCR=true streamlit run app.py
+python3 -m venv .venv
+.venv/bin/python -m pip install --upgrade pip
+.venv/bin/python -m pip install -r requirements.txt
+.venv/bin/python -m pip install --no-deps owocr==1.26.8
+.venv/bin/python -m pip install cffi "protobuf>=6.33.2" jaconv loguru pynputfix websockets desktop-notifier pystrayfix mss obsws-python psutil curl_cffi pyperclip pywayland
 ```
 
-Chrome Screen AI:
+Ubuntu / Debian packages:
 
 ```bash
-source ~/.venvs/pdf_ocr/bin/activate
-ALLOW_MOCK_OCR=false streamlit run app.py
+sudo apt install -y python3-gi build-essential pkg-config libcairo2-dev libgirepository-1.0-dev libwayland-dev python3-dev
 ```
 
-The first real OCR run on WSL downloads Chrome Screen AI assets into `~/.config/screen_ai`.
-
-### PowerShell
-
-If you need to start Streamlit from Windows Python instead of WSL, activate your Windows-side virtual environment first. The exact environment name depends on what you keep locally. For example:
-
-```powershell
-.\.venv_nopip\Scripts\Activate.ps1
-$env:ALLOW_MOCK_OCR = "true"
-streamlit run app.py
-```
-
-For real OCR with a Windows Python environment:
-
-```powershell
-$env:ALLOW_MOCK_OCR = "false"
-streamlit run app.py
-```
-
-## Docker
-
-### Bash / WSL
-
-Build:
+Arch Linux packages:
 
 ```bash
-docker build -t pdf-ocr-streamlit .
+sudo pacman -Sy --noconfirm python-gobject cairo gobject-introspection base-devel pkgconf wayland
 ```
 
-Run:
+Run locally:
 
 ```bash
-docker run --rm -p 8501:8501 \
-  -v "$(pwd)/data/input:/app/data/input" \
-  -v "$(pwd)/data/output:/app/data/output" \
-  -v "$(pwd)/data/work:/app/data/work" \
-  pdf-ocr-streamlit
+ALLOW_MOCK_OCR=false .venv/bin/streamlit run app.py
 ```
 
-### PowerShell
+## Current Behavior
 
-Build:
-
-```powershell
-docker build -t pdf-ocr-streamlit .
-```
-
-Run:
-
-```powershell
-docker run --rm -p 8501:8501 ^
-  -v ${PWD}\\data\\input:/app/data/input ^
-  -v ${PWD}\\data\\output:/app/data/output ^
-  -v ${PWD}\\data\\work:/app/data/work ^
-  pdf-ocr-streamlit
-```
-
-## Current behavior
-
-- The app is `owocr`-only. It always runs `owocr` with Chrome Screen AI and writes both `.txt` and `.md`.
-- The Markdown output is generated by the app from `owocr` paragraph and line structure. It can preserve headings and bullet-like lines better than plain text, but it is still heuristic rather than native Markdown from `owocr`.
-- The service uses the `owocr` Python package directly and calls Chrome Screen AI without going through the full CLI watcher flow.
-- If `ALLOW_MOCK_OCR=true`, the app still runs with mock output so the UI and job flow can be validated.
-- On WSL, the app applies a Linux-specific runtime patch in `owocr_service.py` so `owocr` can use the current `screen-ai/linux` package naming and the system `python3-gi` installation.
-
-## Notes on owocr
-
-The `owocr` repository documents folder input via `-r=<folder path>` and file output via `-w=<txt file path>`, which matches this app's image-first pipeline. Recent `owocr` releases list Chrome Screen AI as a local engine and describe installation with `pip install "owocr[screenai]"`. This prototype therefore fixes the product requirement at the application level: when the user chooses `owocr`, the intended engine is Chrome Screen AI.
-
-## Feasibility summary
-
-This prototype confirms the architecture is practical in Streamlit:
-
-- PDF pre-processing can be done up front with PyMuPDF.
-- Streamlit can handle file upload, local-file selection, progress display, and result download in one screen.
-- `owocr` fits cleanly behind a dedicated adapter class.
-
-The remaining work for production use is mainly operational:
-
-- verifying the local `owocr` installation and any version-specific Screen AI startup options
-- handling longer jobs and cancellations more robustly
-- improving logs and error recovery
+- The app is `owocr`-only and always uses Chrome Screen AI.
+- The Markdown output is generated from `owocr` paragraph and line structure. It is heuristic Markdown, not native Markdown from `owocr`.
+- If `ALLOW_MOCK_OCR=true`, the UI still runs with mock output for flow validation.
+- On Linux, `ocr_app/services/owocr_service.py` applies a runtime patch so `owocr` can use the current `screen-ai/linux` package naming and Linux package layout.
 
 ## Third-Party Software
 

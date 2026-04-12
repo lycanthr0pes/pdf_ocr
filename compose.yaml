@@ -1,0 +1,22 @@
+services:
+  app:
+    build:
+      context: .
+    image: pdf-ocr-streamlit:latest
+    environment:
+      APP_BASE_DIR: /app
+      INPUT_DIR: data/input
+      WORK_DIR: data/work
+      OUTPUT_DIR: data/output
+      PDF_RENDER_DPI: 220
+      ALLOW_MOCK_OCR: ${ALLOW_MOCK_OCR:-false}
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./data/input:/app/data/input
+      - ./data/output:/app/data/output
+      - ./data/work:/app/data/work
+      - screen_ai_cache:/root/.config/screen_ai
+
+volumes:
+  screen_ai_cache:

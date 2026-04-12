@@ -569,12 +569,12 @@ class OwocrService:
                 return True
             if shared_lib.exists():
                 if target_path.exists():
-                    shutil.rmtree(target_path)
-                shutil.copytree(shared_cache, target_path)
+                    self._clear_directory(target_path)
+                shutil.copytree(shared_cache, target_path, dirs_exist_ok=True)
                 return True
 
             if target_path.exists():
-                shutil.rmtree(target_path)
+                self._clear_directory(target_path)
             os_name = platform.system().lower()
             arch = platform.machine().lower()
             if os_name == "darwin":
@@ -615,6 +615,15 @@ class OwocrService:
 
         chrome_screen_ai_cls._download_files_if_needed = _download_files_if_needed
         chrome_screen_ai_cls._pdf_ocr_linux_patch = True
+
+    def _clear_directory(self, path: Path) -> None:
+        for child in path.iterdir():
+            if child.is_dir() and not child.is_symlink():
+                import shutil
+
+                shutil.rmtree(child)
+            else:
+                child.unlink()
 
     def _mock_text(self, image_paths: list[Path], progress_callback: ProgressCallback) -> tuple[str, str]:
         total = len(image_paths)
